@@ -30,6 +30,8 @@ async fn copy_log<R: AsyncBufRead + Unpin>(
 struct ProcessInner {
     exit_status: RwLock<Option<ExitStatus>>,
     logs: RwLock<Vec<Bytes>>,
+    // Signals the listeners about progress being made by the process
+    // (either new log messages or finishing).
     progress: Arc<Notify>,
 }
 
@@ -39,9 +41,11 @@ impl ProcessInner {
     }
 }
 
+/// Represents a single process.
 pub struct Process(Arc<ProcessInner>);
 
 impl Process {
+    /// Spawn a new process.
     pub fn spawn<'a>(argv0: &str, argv: impl Iterator<Item = &'a str>) -> Result<Self, IoError> {
         let inner = Arc::new(ProcessInner::default());
         let inner_clone = inner.clone();
@@ -79,6 +83,14 @@ impl Process {
         Ok(Process(inner_clone))
     }
 
+    /// Returns a stream which yields stdout and stderr logs.
+    /// Each stream item is a single line.
+    /// Each invocation of `logs()` returns an independent stream
+    /// that returns a copy of the logs.
+    ///
+    /// When the stream returns, the process has finished
+    /// and it is guaranteed that subsequent calls to `Process::status()`
+    /// will return `Some(ExitStatus)`.
     pub fn logs(&self) -> impl Stream<Item = Bytes> {
         let inner = self.0.clone();
         let notify = inner.progress.clone();
@@ -112,6 +124,8 @@ impl Process {
         })
     }
 
+    /// Gets the `ExitStatus` of the process.
+    /// If `None` is returned, the process has not yet finished.
     pub async fn status(&self) -> Option<ExitStatus> {
         *self.0.exit_status.read().await
     }
