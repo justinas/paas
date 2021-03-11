@@ -12,4 +12,5 @@ tonic = "0.4"
 uuid = { version = "0.8", features = ["v4"] }
 
 [build-dependencies]
+prost-build = "0.7"
 tonic-build = "0.4"
