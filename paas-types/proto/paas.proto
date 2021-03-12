@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package paas_types;
+
+service ProcessService {
+    rpc Exec (ExecRequest) returns (ExecResponse) {}
+    rpc GetLogs (LogsRequest) returns (stream LogsResponse) {}
+    rpc GetStatus (StatusRequest) returns (StatusResponse) {}
+    rpc Stop (StopRequest) returns (StopResponse) {}
+}
+
+message Uuid {
+    bytes id = 1;
+}
+
+message ExecRequest {
+    repeated string args = 1;
+}
+
+message ExecResponse {
+    Uuid id = 1;
+}
+
+message LogsRequest {
+    Uuid id = 1;
+}
+
+message LogsResponse {
+    repeated bytes lines = 1;
+}
+
+message StatusRequest {
+    Uuid id = 1;
+}
+
+message StatusResponse {
+    oneof exit_status {
+        int32 code = 1;
+        int32 signal = 2;
+    }
+}
+
+message StopRequest {
+    Uuid id = 1;
+}
+
+message StopResponse {}
