@@ -2,15 +2,18 @@ use std::{
     io::Error as IoError,
     process::{ExitStatus, Stdio},
     sync::Arc,
+    time::Duration,
 };
 
 use bytes::Bytes;
-use futures::Stream;
+use futures::{future::FusedFuture, FutureExt, Stream};
 use tokio::{
     io::{AsyncBufRead, AsyncBufReadExt, BufReader},
-    process::Command,
-    sync::{Notify, RwLock},
+    process::{Child, Command},
+    sync::{oneshot, Mutex, Notify, RwLock},
 };
+
+const SIGTERM_TIMEOUT: Duration = Duration::from_secs(5);
 
 async fn copy_log<R: AsyncBufRead + Unpin>(
     reader: R,
@@ -26,16 +29,104 @@ async fn copy_log<R: AsyncBufRead + Unpin>(
     Ok(())
 }
 
-#[derive(Default)]
+// TODO: a better error type
+async fn stop_child(child: &mut Child) -> Result<(), Box<dyn std::error::Error>> {
+    let pid = match child.id() {
+        Some(id) => id,
+        None => return Ok(()),
+    } as i32; // TODO: dubious cast? pid_t is i32 in `nix`, but u32 in `std`.
+    nix::sys::signal::kill(nix::unistd::Pid::from_raw(pid), nix::sys::signal::SIGTERM)?;
+    tokio::select! {
+        _ = child.wait() => {
+            return Ok(());
+        },
+        _ = tokio::time::sleep(SIGTERM_TIMEOUT) => {}
+    };
+    Ok(child.kill().await?)
+}
+
+async fn process_task(
+    mut child: Child,
+    inner: Arc<ProcessInner>,
+    stop_receiver: oneshot::Receiver<()>,
+) {
+    // A child process might close botth stdout and stderr,
+    // but remain alive. In that case, we must still try to wait
+    // for the stop message.
+    // Fuse the future to be able to .await twice safely (when !is_terminated()).
+    let mut stop_receiver = stop_receiver.fuse();
+
+    let stdout = BufReader::new(child.stdout.take().expect("should always be available"));
+    let stderr = BufReader::new(child.stderr.take().expect("should always be available"));
+
+    // Phase 1: copy logs from stdout/stderr, on stop message: signal the child.
+    tokio::select!(
+        copied = futures::future::join(
+            copy_log(stdout, inner.clone()),
+            copy_log(stderr, inner.clone())
+        ) => {
+            if let Err(e) = copied.0 {
+                // TODO: use `log` crate
+                eprintln!("{:?}", e);
+            }
+            if let Err(e) = copied.1 {
+                // TODO: use `log` crate
+                eprintln!("{:?}", e);
+            }
+        },
+        _ = &mut stop_receiver => {
+            if let Err(e) = stop_child(&mut child).await {
+                // TODO: use `log` crate
+                eprintln!("{:?}", e);
+            }
+        },
+    );
+
+    // Phase 2: stdout/stderr have been closed,
+    // wait for a stop message to arrive (if not arrived yet),
+    // or on the child to finish otherwise
+    loop {
+        tokio::select! {
+            _ = &mut stop_receiver, if !stop_receiver.is_terminated() => {
+                if let Err(e) = stop_child(&mut child).await {
+                    // TODO: use `log` crate
+                    eprintln!("{:?}", e);
+                }
+            },
+            res = child.wait() => {
+                match res {
+                    Ok(s) => {
+                        inner.finish(s).await;
+                        inner.progress.notify_waiters();
+                        return;
+                    }
+                    Err(_) => unimplemented!("when does this happen?"), // TODO
+                }
+            }
+        }
+    }
+}
+
 struct ProcessInner {
     exit_status: RwLock<Option<ExitStatus>>,
     logs: RwLock<Vec<Bytes>>,
+
     // Signals the listeners about progress being made by the process
     // (either new log messages or finishing).
     progress: Arc<Notify>,
+
+    stop_sender: Mutex<Option<oneshot::Sender<()>>>,
 }
 
 impl ProcessInner {
+    fn new(stop_sender: oneshot::Sender<()>) -> Self {
+        Self {
+            exit_status: Default::default(),
+            logs: Default::default(),
+            progress: Default::default(),
+            stop_sender: Mutex::new(Some(stop_sender)),
+        }
+    }
     async fn finish(&self, exit_status: ExitStatus) {
         *self.exit_status.write().await = Some(exit_status);
     }
@@ -47,40 +138,47 @@ pub struct Process(Arc<ProcessInner>);
 impl Process {
     /// Spawn a new process.
     pub fn spawn<'a>(argv0: &str, argv: impl Iterator<Item = &'a str>) -> Result<Self, IoError> {
-        let inner = Arc::new(ProcessInner::default());
+        let (stop_tx, stop_rx) = oneshot::channel();
+        let inner = Arc::new(ProcessInner::new(stop_tx));
         let inner_clone = inner.clone();
-        let mut child = Command::new(argv0)
+        let child = Command::new(argv0)
             .args(argv)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()?;
 
-        tokio::spawn(async move {
-            let stdout = BufReader::new(child.stdout.take().expect("should always be available"));
-            let stderr = BufReader::new(child.stderr.take().expect("should always be available"));
-
-            let copied = tokio::join!(
-                copy_log(stdout, inner.clone()),
-                copy_log(stderr, inner.clone())
-            );
-            if let Err(e) = copied.0 {
-                // TODO: use `log` crate
-                eprintln!("{:?}", e);
-            }
-            if let Err(e) = copied.1 {
-                // TODO: use `log` crate
-                eprintln!("{:?}", e);
-            }
-            match child.wait().await {
-                Ok(s) => {
-                    inner.finish(s).await;
-                    inner.progress.notify_waiters();
-                }
-                Err(_) => unimplemented!("when does this happen?"), // TODO
-            }
-        });
+        tokio::spawn(process_task(child, inner, stop_rx));
 
         Ok(Process(inner_clone))
+    }
+
+    /// Tries to stop the process, first gracefully by sending SIGTERM,
+    /// then, after timeout specified by `SIGTERM_TIMEOUT` elapses, by sending a SIGKILL.
+    /// If the process has already finished, returns `Ok` with the exit status.
+    /// If the process has not finished,
+    /// but another "stop" operation has already been initiated, returns `Err(())`.
+    pub async fn stop(&self) -> Result<ExitStatus, ()> {
+        if let Some(e) = *self.0.exit_status.read().await {
+            return Ok(e);
+        }
+
+        match self.0.stop_sender.lock().await.take() {
+            Some(tx) => {
+                let notify = self.0.progress.clone();
+
+                // Ignore error: if receiver has hung up, process has already finished.
+                let _ = tx.send(());
+
+                loop {
+                    let notified = notify.notified();
+                    if let Some(e) = *self.0.exit_status.read().await {
+                        return Ok(e);
+                    }
+                    notified.await;
+                }
+            }
+            None => Err(()),
+        }
     }
 
     /// Returns a stream which yields stdout and stderr logs.
@@ -133,8 +231,11 @@ impl Process {
 
 #[cfg(test)]
 mod test {
-    use super::Process;
+    use std::os::unix::process::ExitStatusExt;
+
     use futures::StreamExt;
+
+    use super::Process;
 
     fn empty_args() -> impl Iterator<Item = &'static str> {
         (&mut []).iter().cloned()
@@ -170,5 +271,36 @@ mod test {
         assert_eq!(logs.next().await.as_deref(), Some(&b"beautiful"[..]));
         assert_eq!(logs.next().await.as_deref(), Some(&b"world"[..]));
         assert_eq!(logs.next().await, None);
+    }
+
+    #[tokio::test]
+    async fn test_process_stop() {
+        let script = "
+            while true; do
+                sleep 1
+            done;
+        ";
+        let p = Process::spawn("/usr/bin/env", ["bash", "-c", &script].iter().cloned()).unwrap();
+        assert_eq!(
+            p.stop().await.unwrap().signal().unwrap(),
+            nix::sys::signal::Signal::SIGTERM as i32
+        );
+
+        // Repeated stops return exit status again
+        assert_eq!(
+            p.stop().await.unwrap().signal().unwrap(),
+            nix::sys::signal::Signal::SIGTERM as i32
+        );
+    }
+
+    #[tokio::test]
+    async fn test_process_stop_forceful() {
+        todo!();
+        let p = Process::spawn("/usr/bin/env", ["bash"].iter().cloned()).unwrap();
+        p.stop().await.unwrap();
+        assert_eq!(
+            p.stop().await.unwrap().signal().unwrap(),
+            nix::sys::signal::Signal::SIGTERM as i32
+        );
     }
 }
