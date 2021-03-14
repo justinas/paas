@@ -231,7 +231,7 @@ impl Process {
 
 #[cfg(test)]
 mod test {
-    use std::os::unix::process::ExitStatusExt;
+    use std::{os::unix::process::ExitStatusExt, time::Duration};
 
     use futures::StreamExt;
 
@@ -295,12 +295,21 @@ mod test {
 
     #[tokio::test]
     async fn test_process_stop_forceful() {
-        todo!();
-        let p = Process::spawn("/usr/bin/env", ["bash"].iter().cloned()).unwrap();
-        p.stop().await.unwrap();
+        let script = r#"
+            trap "" TERM
+            while true; do
+                sleep 1
+            done;
+        "#;
+
+        let p = Process::spawn("/usr/bin/env", ["bash", "-c", script].iter().cloned()).unwrap();
+
+        // Wait until bash executes at least "trap"
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
         assert_eq!(
             p.stop().await.unwrap().signal().unwrap(),
-            nix::sys::signal::Signal::SIGTERM as i32
+            nix::sys::signal::Signal::SIGKILL as i32
         );
     }
 }
