@@ -194,7 +194,10 @@ impl Process {
             loop {
                 let notified = notify.notified();
                 let line = {
-                    // TODO: batch
+                    // TODO: read multiple lines here for efficiency.
+                    // We use `bytes::Bytes` and it is internally ref-counted,
+                    // so perhaps clone `Bytes` objects to a stack buffer,
+                    // unlock quickly, then yield each object outside of the lock.
                     let logs = inner.logs.read().await;
                     if pos < logs.len() {
                         let line = logs[pos].clone();
