@@ -110,6 +110,8 @@ Examples of error conditions:
 ### Transport
 
 `paasd` uses TLS for transport security.
+The clients only trust servers that produce a valid certificate
+signed by *server certificate authority (CA)*.
 
 As there is no requirement for compatibility with any legacy systems,
 it is planned to support only the strongest cipher suites,
@@ -123,11 +125,20 @@ in case any of these ciphers get deprecated.
 ### Authentication and authorization
 
 `paasd` uses mTLS to authenticate the clients via client certificates.
-No other authorization mechanisms are to be implemented,
-meaning any user that connects with a valid certificate
-is authorized to spawn new processes and take actions on any existing processes.
+Upon connection, it is validated that the client has a valid certificate,
+issued by the *client CA*.
 
-For the PoC, both server and client certificates
+We assume that every client has a unique certificate
+and so use the certificates to uniquely identify clients.
+Internally, a cryptographic hash of the client certificate could be used
+to have a short, strong identifier for a client.
+
+All authenticated users are allowed to spawn processes.
+However, any given user is only authorized to manage (read logs, read status, stop)
+the processes that they themselves have spawned.
+
+For the PoC, both server and client certificates,
+as well as server CA and client CA certificates
 will be hardcoded and committed to the repository.
 
 ### Other considerations
