@@ -26,7 +26,6 @@ async fn copy_log<R: AsyncBufRead + Unpin>(
         process.logs.write().await.push(Bytes::from(line));
         process.progress.notify_waiters();
     }
-    process.progress.notify_waiters();
     Ok(())
 }
 
