@@ -11,6 +11,7 @@ use tokio::{
     io::{AsyncBufRead, AsyncBufReadExt, BufReader},
     process::{Child, Command},
     sync::{oneshot, Mutex, Notify, RwLock},
+    time::timeout,
 };
 
 const SIGTERM_TIMEOUT: Duration = Duration::from_secs(5);
@@ -36,12 +37,9 @@ async fn stop_child(child: &mut Child) -> Result<(), Box<dyn std::error::Error>>
         None => return Ok(()),
     } as i32; // TODO: dubious cast? pid_t is i32 in `nix`, but u32 in `std`.
     nix::sys::signal::kill(nix::unistd::Pid::from_raw(pid), nix::sys::signal::SIGTERM)?;
-    tokio::select! {
-        _ = child.wait() => {
-            return Ok(());
-        },
-        _ = tokio::time::sleep(SIGTERM_TIMEOUT) => {}
-    };
+    if timeout(SIGTERM_TIMEOUT, child.wait()).await.is_ok() {
+        return Ok(());
+    }
     Ok(child.kill().await?)
 }
 
@@ -265,7 +263,7 @@ mod test {
             echo world
             sleep 2
         ";
-        let p = Process::spawn("/usr/bin/env", ["bash", "-c", &script].iter().cloned()).unwrap();
+        let p = Process::spawn("/usr/bin/env", ["bash", "-c", script].iter().cloned()).unwrap();
         let mut logs = p.logs();
         assert_eq!(logs.next().await.as_deref(), Some(&b"hello"[..]));
         assert_eq!(logs.next().await.as_deref(), Some(&b"beautiful"[..]));
@@ -280,7 +278,7 @@ mod test {
                 sleep 1
             done;
         ";
-        let p = Process::spawn("/usr/bin/env", ["bash", "-c", &script].iter().cloned()).unwrap();
+        let p = Process::spawn("/usr/bin/env", ["bash", "-c", script].iter().cloned()).unwrap();
         assert_eq!(
             p.stop().await.unwrap().signal().unwrap(),
             nix::sys::signal::Signal::SIGTERM as i32
