@@ -191,7 +191,7 @@ impl Process {
         let inner = self.0.clone();
         let notify = inner.progress.clone();
         let mut pos = 0;
-        Box::pin(async_stream::stream! {
+        async_stream::stream! {
             loop {
                 let notified = notify.notified();
                 let line = {
@@ -217,7 +217,7 @@ impl Process {
                     notified.await;
                 }
             }
-        })
+        }
     }
 
     /// Gets the `ExitStatus` of the process.
@@ -231,7 +231,7 @@ impl Process {
 mod test {
     use std::{os::unix::process::ExitStatusExt, time::Duration};
 
-    use futures::StreamExt;
+    use futures::{pin_mut, StreamExt};
 
     use super::Process;
 
@@ -248,7 +248,8 @@ mod test {
     #[tokio::test]
     async fn test_process_spawn() {
         let p = Process::spawn("echo", ["foo"].iter().cloned()).unwrap();
-        let mut logs = p.logs();
+        let logs = p.logs();
+        pin_mut!(logs);
         assert_eq!(logs.next().await.as_deref(), Some(&b"foo"[..]));
         assert_eq!(logs.next().await, None);
         assert_eq!(p.status().await.unwrap().code(), Some(0));
@@ -264,7 +265,8 @@ mod test {
             sleep 2
         ";
         let p = Process::spawn("/usr/bin/env", ["bash", "-c", script].iter().cloned()).unwrap();
-        let mut logs = p.logs();
+        let logs = p.logs();
+        pin_mut!(logs);
         assert_eq!(logs.next().await.as_deref(), Some(&b"hello"[..]));
         assert_eq!(logs.next().await.as_deref(), Some(&b"beautiful"[..]));
         assert_eq!(logs.next().await.as_deref(), Some(&b"world"[..]));
