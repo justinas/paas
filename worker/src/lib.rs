@@ -9,26 +9,15 @@ use bytes::Bytes;
 use futures::{future::FusedFuture, FutureExt, Stream};
 use log::error;
 use tokio::{
-    io::{AsyncBufRead, AsyncBufReadExt, BufReader},
+    io::BufReader,
     process::{Child, Command},
     sync::{oneshot, Mutex, Notify, RwLock},
     time::timeout,
 };
 
-const SIGTERM_TIMEOUT: Duration = Duration::from_secs(5);
+mod logs;
 
-async fn copy_log<R: AsyncBufRead + Unpin>(
-    reader: R,
-    process: Arc<ProcessInner>,
-) -> Result<(), IoError> {
-    let mut lines = reader.lines();
-    // TODO: re-locks each line, not too efficient
-    while let Some(line) = lines.next_line().await? {
-        process.logs.write().await.push(Bytes::from(line));
-        process.progress.notify_waiters();
-    }
-    Ok(())
-}
+const SIGTERM_TIMEOUT: Duration = Duration::from_secs(5);
 
 // TODO: a better error type
 async fn stop_child(child: &mut Child) -> Result<(), Box<dyn std::error::Error>> {
@@ -60,8 +49,8 @@ async fn process_task(
     // Phase 1: copy logs from stdout/stderr, on stop message: signal the child.
     tokio::select!(
         copied = futures::future::join(
-            copy_log(stdout, inner.clone()),
-            copy_log(stderr, inner.clone())
+            logs::copy(stdout, inner.clone()),
+            logs::copy(stderr, inner.clone())
         ) => {
             if let Err(e) = copied.0 {
                 error!("{:?}", e);
@@ -101,7 +90,7 @@ async fn process_task(
     }
 }
 
-struct ProcessInner {
+pub(crate) struct ProcessInner {
     exit_status: RwLock<Option<ExitStatus>>,
     logs: RwLock<Vec<Bytes>>,
 
@@ -184,39 +173,7 @@ impl Process {
     /// and it is guaranteed that subsequent calls to `Process::status()`
     /// will return `Some(ExitStatus)`.
     pub fn logs(&self) -> impl Stream<Item = Bytes> {
-        let inner = self.0.clone();
-        let notify = inner.progress.clone();
-        let mut pos = 0;
-        async_stream::stream! {
-            loop {
-                let notified = notify.notified();
-                let line = {
-                    // TODO: read multiple lines here for efficiency.
-                    // We use `bytes::Bytes` and it is internally ref-counted,
-                    // so perhaps clone `Bytes` objects to a stack buffer,
-                    // unlock quickly, then yield each object outside of the lock.
-                    let logs = inner.logs.read().await;
-                    if pos < logs.len() {
-                        let line = logs[pos].clone();
-                        pos += 1;
-                        Some(line)
-                    } else {
-                        None
-                    }
-                };
-                if let Some(l) = line {
-                    yield l;
-                }
-                let process_finished = inner.exit_status.read().await.is_some();
-                let has_read_all = pos == inner.logs.read().await.len();
-                if process_finished && has_read_all {
-                    return;
-                }
-                if has_read_all {
-                    notified.await;
-                }
-            }
-        }
+        logs::stream(self.0.clone())
     }
 
     /// Gets the `ExitStatus` of the process.
