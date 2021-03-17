@@ -204,7 +204,7 @@ mod test {
             echo world
             sleep 2
         ";
-        let p = Process::spawn("/usr/bin/env", ["bash", "-c", script].iter().cloned()).unwrap();
+        let p = Process::spawn("bash", ["-c", script].iter().cloned()).unwrap();
         let logs = p.logs();
         pin_mut!(logs);
         assert_eq!(logs.next().await.as_deref(), Some(&b"hello"[..]));
@@ -220,7 +220,7 @@ mod test {
                 sleep 1
             done;
         ";
-        let p = Process::spawn("/usr/bin/env", ["bash", "-c", script].iter().cloned()).unwrap();
+        let p = Process::spawn("bash", ["-c", script].iter().cloned()).unwrap();
         assert_eq!(
             p.stop().await.unwrap().signal().unwrap(),
             nix::sys::signal::Signal::SIGTERM as i32
@@ -242,7 +242,7 @@ mod test {
             done;
         "#;
 
-        let p = Process::spawn("/usr/bin/env", ["bash", "-c", script].iter().cloned()).unwrap();
+        let p = Process::spawn("bash", ["-c", script].iter().cloned()).unwrap();
 
         // Wait until bash executes at least "trap"
         tokio::time::sleep(Duration::from_secs(1)).await;
