@@ -6,6 +6,8 @@ use std::{fs::File, io::BufReader};
 use tonic::transport::Server;
 
 mod service;
+mod store;
+mod user;
 use service::make_server;
 
 static CIPHERSUITES: &[&SupportedCipherSuite; 5] = &[

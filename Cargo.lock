@@ -550,8 +550,10 @@ dependencies = [
  "paas-types",
  "pretty_env_logger",
  "rustls",
+ "thiserror",
  "tokio",
  "tonic",
+ "uuid",
 ]
 
 [[package]]
