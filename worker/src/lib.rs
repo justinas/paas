@@ -31,7 +31,7 @@ async fn process_task(
     let stderr = BufReader::new(child.stderr.take().expect("should always be available"));
 
     // Phase 1: copy logs from stdout/stderr, on stop message: signal the child.
-    tokio::select!(
+    tokio::select! {
         copied = futures::future::join(
             logs::copy(stdout, inner.clone()),
             logs::copy(stderr, inner.clone())
@@ -48,7 +48,7 @@ async fn process_task(
                 error!("{:?}", e);
             }
         },
-    );
+    };
 
     // Phase 2: stdout/stderr have been closed,
     // wait for a stop message to arrive (if not arrived yet),
