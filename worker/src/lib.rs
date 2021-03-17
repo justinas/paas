@@ -1,5 +1,5 @@
 use std::{
-    io::Error as IoError,
+    io,
     process::{ExitStatus, Stdio},
     sync::Arc,
 };
@@ -104,7 +104,7 @@ pub struct Process(Arc<ProcessInner>);
 
 impl Process {
     /// Spawn a new process.
-    pub fn spawn<'a>(argv0: &str, argv: impl Iterator<Item = &'a str>) -> Result<Self, IoError> {
+    pub fn spawn<'a>(argv0: &str, argv: impl Iterator<Item = &'a str>) -> Result<Self, io::Error> {
         let (stop_tx, stop_rx) = oneshot::channel();
         let inner = Arc::new(ProcessInner::new(stop_tx));
         let inner_clone = inner.clone();

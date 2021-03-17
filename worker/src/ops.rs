@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{io, time::Duration};
 
 use nix::{
     sys::signal::{self, kill},
@@ -11,7 +11,7 @@ const SIGTERM_TIMEOUT: Duration = Duration::from_secs(5);
 #[derive(Debug, thiserror::Error)]
 pub enum StopError {
     #[error("I/O error while stopping the process: {0}")]
-    Io(#[from] std::io::Error),
+    Io(#[from] io::Error),
     #[error("Syscall error while stopping the process: {0}")]
     Nix(#[from] nix::Error),
 }
