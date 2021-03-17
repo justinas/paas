@@ -14,7 +14,7 @@ pub(crate) async fn copy<R: AsyncBufRead + Unpin>(
     let mut lines = reader.lines();
     // TODO: re-locks each line, not too efficient
     while let Some(line) = lines.next_line().await? {
-        process.logs.write().await.push(Bytes::from(line));
+        process.logs.write().unwrap().push(Bytes::from(line));
         process.progress.notify_waiters();
     }
     Ok(())
@@ -31,7 +31,7 @@ pub(crate) fn stream(process: Arc<ProcessInner>) -> impl Stream<Item = Bytes> {
                 // We use `bytes::Bytes` and it is internally ref-counted,
                 // so perhaps clone `Bytes` objects to a stack buffer,
                 // unlock quickly, then yield each object outside of the lock.
-                let logs = process.logs.read().await;
+                let logs = process.logs.read().unwrap();
                 if pos < logs.len() {
                     let line = logs[pos].clone();
                     pos += 1;
@@ -43,8 +43,8 @@ pub(crate) fn stream(process: Arc<ProcessInner>) -> impl Stream<Item = Bytes> {
             if let Some(l) = line {
                 yield l;
             }
-            let process_finished = process.exit_status.read().await.is_some();
-            let has_read_all = pos == process.logs.read().await.len();
+            let process_finished = process.exit_status.read().unwrap().is_some();
+            let has_read_all = pos == process.logs.read().unwrap().len();
             if process_finished && has_read_all {
                 return;
             }

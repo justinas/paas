@@ -1,7 +1,7 @@
 use std::{
     io,
     process::{ExitStatus, Stdio},
-    sync::Arc,
+    sync::{Arc, Mutex, RwLock},
 };
 
 use bytes::Bytes;
@@ -10,7 +10,7 @@ use log::error;
 use tokio::{
     io::BufReader,
     process::{Child, Command},
-    sync::{oneshot, Mutex, Notify, RwLock},
+    sync::{oneshot, Notify},
 };
 
 mod logs;
@@ -95,7 +95,7 @@ impl ProcessInner {
         }
     }
     async fn finish(&self, exit_status: ExitStatus) {
-        *self.exit_status.write().await = Some(exit_status);
+        *self.exit_status.write().unwrap() = Some(exit_status);
     }
 }
 
@@ -125,11 +125,11 @@ impl Process {
     /// If the process has not finished,
     /// but another "stop" operation has already been initiated, returns `Err(())`.
     pub async fn stop(&self) -> Result<ExitStatus, ()> {
-        if let Some(e) = *self.0.exit_status.read().await {
+        if let Some(e) = *self.0.exit_status.read().unwrap() {
             return Ok(e);
         }
 
-        match self.0.stop_sender.lock().await.take() {
+        match self.0.stop_sender.lock().unwrap().take() {
             Some(tx) => {
                 let notify = self.0.progress.clone();
 
@@ -138,7 +138,7 @@ impl Process {
 
                 loop {
                     let notified = notify.notified();
-                    if let Some(e) = *self.0.exit_status.read().await {
+                    if let Some(e) = *self.0.exit_status.read().unwrap() {
                         return Ok(e);
                     }
                     notified.await;
@@ -163,7 +163,7 @@ impl Process {
     /// Gets the `ExitStatus` of the process.
     /// If `None` is returned, the process has not yet finished.
     pub async fn status(&self) -> Option<ExitStatus> {
-        *self.0.exit_status.read().await
+        *self.0.exit_status.read().unwrap()
     }
 }
 
