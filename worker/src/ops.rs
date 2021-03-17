@@ -8,8 +8,15 @@ use tokio::{process::Child, time::timeout};
 
 const SIGTERM_TIMEOUT: Duration = Duration::from_secs(5);
 
-// TODO: a better error type
-pub async fn stop_child(child: &mut Child) -> Result<(), Box<dyn std::error::Error>> {
+#[derive(Debug, thiserror::Error)]
+pub enum StopError {
+    #[error("I/O error while stopping the process: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("Syscall error while stopping the process: {0}")]
+    Nix(#[from] nix::Error),
+}
+
+pub async fn stop_child(child: &mut Child) -> Result<(), StopError> {
     let pid = match child.id() {
         Some(id) => id,
         None => return Ok(()),
