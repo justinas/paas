@@ -2,7 +2,6 @@ use std::{
     io::Error as IoError,
     process::{ExitStatus, Stdio},
     sync::Arc,
-    time::Duration,
 };
 
 use bytes::Bytes;
@@ -12,25 +11,10 @@ use tokio::{
     io::BufReader,
     process::{Child, Command},
     sync::{oneshot, Mutex, Notify, RwLock},
-    time::timeout,
 };
 
 mod logs;
-
-const SIGTERM_TIMEOUT: Duration = Duration::from_secs(5);
-
-// TODO: a better error type
-async fn stop_child(child: &mut Child) -> Result<(), Box<dyn std::error::Error>> {
-    let pid = match child.id() {
-        Some(id) => id,
-        None => return Ok(()),
-    } as i32; // TODO: dubious cast? pid_t is i32 in `nix`, but u32 in `std`.
-    nix::sys::signal::kill(nix::unistd::Pid::from_raw(pid), nix::sys::signal::SIGTERM)?;
-    if timeout(SIGTERM_TIMEOUT, child.wait()).await.is_ok() {
-        return Ok(());
-    }
-    Ok(child.kill().await?)
-}
+mod ops;
 
 async fn process_task(
     mut child: Child,
@@ -60,7 +44,7 @@ async fn process_task(
             }
         },
         _ = &mut stop_receiver => {
-            if let Err(e) = stop_child(&mut child).await {
+            if let Err(e) = ops::stop_child(&mut child).await {
                 error!("{:?}", e);
             }
         },
@@ -72,7 +56,7 @@ async fn process_task(
     loop {
         tokio::select! {
             _ = &mut stop_receiver, if !stop_receiver.is_terminated() => {
-                if let Err(e) = stop_child(&mut child).await {
+                if let Err(e) = ops::stop_child(&mut child).await {
                     error!("{:?}", e);
                 }
             },
