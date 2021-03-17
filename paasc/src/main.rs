@@ -1,10 +1,18 @@
 use std::{fs::File, io::BufReader};
 
-use rustls::{internal::pemfile, ClientConfig, RootCertStore};
+use rustls::{ciphersuite, internal::pemfile, ClientConfig, RootCertStore, SupportedCipherSuite};
 use tonic::transport::Channel;
 
 use paas_types::process_service_client as client;
 use paas_types::StatusRequest;
+
+static CIPHERSUITES: &[&SupportedCipherSuite; 5] = &[
+    &ciphersuite::TLS13_AES_256_GCM_SHA384,
+    &ciphersuite::TLS13_CHACHA20_POLY1305_SHA256,
+    &ciphersuite::TLS13_AES_128_GCM_SHA256,
+    &ciphersuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+    &ciphersuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+];
 
 fn buf_read(path: &str) -> Result<BufReader<File>, Box<dyn std::error::Error>> {
     Ok(BufReader::new(File::open(path)?))
@@ -24,6 +32,7 @@ fn rustls_config() -> Result<ClientConfig, Box<dyn std::error::Error>> {
         .unwrap();
 
     let mut config = ClientConfig::new();
+    config.ciphersuites = CIPHERSUITES.to_vec();
     config.root_store = cert_store;
     config.set_single_client_cert(cert, key)?;
     config.set_protocols(&[b"h2"[..].into()]);
