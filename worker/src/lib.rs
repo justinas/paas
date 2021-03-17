@@ -7,6 +7,7 @@ use std::{
 
 use bytes::Bytes;
 use futures::{future::FusedFuture, FutureExt, Stream};
+use log::error;
 use tokio::{
     io::{AsyncBufRead, AsyncBufReadExt, BufReader},
     process::{Child, Command},
@@ -63,18 +64,15 @@ async fn process_task(
             copy_log(stderr, inner.clone())
         ) => {
             if let Err(e) = copied.0 {
-                // TODO: use `log` crate
-                eprintln!("{:?}", e);
+                error!("{:?}", e);
             }
             if let Err(e) = copied.1 {
-                // TODO: use `log` crate
-                eprintln!("{:?}", e);
+                error!("{:?}", e);
             }
         },
         _ = &mut stop_receiver => {
             if let Err(e) = stop_child(&mut child).await {
-                // TODO: use `log` crate
-                eprintln!("{:?}", e);
+                error!("{:?}", e);
             }
         },
     );
@@ -86,8 +84,7 @@ async fn process_task(
         tokio::select! {
             _ = &mut stop_receiver, if !stop_receiver.is_terminated() => {
                 if let Err(e) = stop_child(&mut child).await {
-                    // TODO: use `log` crate
-                    eprintln!("{:?}", e);
+                    error!("{:?}", e);
                 }
             },
             res = child.wait() => {
