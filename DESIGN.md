@@ -129,9 +129,8 @@ Upon connection, it is validated that the client has a valid certificate,
 issued by the *client CA*.
 
 We assume that every client has a unique certificate
-and so use the certificates to uniquely identify clients.
-Internally, a cryptographic hash of the client certificate could be used
-to have a short, strong identifier for a client.
+and so use the certificates to uniquely identify clients
+by the X.509 Common Name.
 
 All authenticated users are allowed to spawn processes.
 However, any given user is only authorized to manage (read logs, read status, stop)
