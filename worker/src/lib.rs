@@ -67,7 +67,7 @@ async fn process_task(
                         inner.progress.notify_waiters();
                         return;
                     }
-                    Err(_) => unimplemented!("when does this happen?"), // TODO
+                    Err(e) => panic!("Unexpected error from wait(): {:?}", e),
                 }
             }
         }
