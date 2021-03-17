@@ -21,7 +21,7 @@ async fn process_task(
     inner: Arc<ProcessInner>,
     stop_receiver: oneshot::Receiver<()>,
 ) {
-    // A child process might close botth stdout and stderr,
+    // A child process might close both stdout and stderr,
     // but remain alive. In that case, we must still try to wait
     // for the stop message.
     // Fuse the future to be able to .await twice safely (when !is_terminated()).
