@@ -1,4 +1,9 @@
-use std::{convert::TryFrom, os::unix::process::ExitStatusExt, pin::Pin, sync::Arc};
+use std::{
+    convert::{TryFrom, TryInto},
+    os::unix::process::ExitStatusExt,
+    pin::Pin,
+    sync::Arc,
+};
 
 use futures::stream::Stream;
 use tonic::{Request, Response, Status};
@@ -11,10 +16,19 @@ use paas_types::{
 use worker::Process;
 
 use crate::{store::ProcessStore, user::UserId};
-use uuid::Uuid;
 
 pub fn make_server() -> server_types::ProcessServiceServer<ProcessService> {
     server_types::ProcessServiceServer::new(ProcessService::new(Arc::new(ProcessStore::new())))
+}
+
+fn std_status_to_paas_status(status: std::process::ExitStatus) -> ExitStatus {
+    let code = status.code();
+    let signal = status.signal();
+    match (code, signal) {
+        (Some(c), None) => ExitStatus::Code(c),
+        (None, Some(s)) => ExitStatus::Signal(s),
+        _ => unreachable!("Exit code & signal should be mutually exclusive"),
+    }
 }
 
 #[derive(Clone)]
@@ -37,6 +51,13 @@ impl ProcessService {
         Ok(UserId::try_from(cert).map_err(|_| {
             Status::unauthenticated("Could not parse client common name from client certificate")
         })?)
+    }
+
+    fn get_process(&self, pid: paas_types::Uuid, uid: &UserId) -> Result<Arc<Process>, Status> {
+        let pid = pid
+            .try_into()
+            .map_err(|_| Status::invalid_argument("Invalid UUID"))?;
+        Ok(self.store.get(pid, &uid).map_err(Into::<Status>::into)?)
     }
 }
 
@@ -75,31 +96,26 @@ impl server_types::ProcessService for ProcessService {
     ) -> Result<Response<StatusResponse>, Status> {
         let uid = Self::authenticate(&req)?;
         let req = req.into_inner();
-        let raw_pid = req
+        let pid = req
             .id
-            .map(|id| id.id)
             .ok_or_else(|| Status::invalid_argument("Process ID not given"))?;
-        let pid =
-            Uuid::from_slice(&raw_pid).map_err(|_| Status::invalid_argument("Invalid UUID"))?;
-        let status = self
-            .store
-            .get(pid, &uid)
-            .map_err(Into::<Status>::into)?
-            .status()
-            .await;
-        let code = status.and_then(|s| s.code());
-        let signal = status.and_then(|s| s.signal());
+        let process = self.get_process(pid, &uid)?;
         Ok(Response::new(StatusResponse {
-            exit_status: match (code, signal) {
-                (Some(c), None) => Some(ExitStatus::Code(c)),
-                (None, Some(s)) => Some(ExitStatus::Signal(s)),
-                (None, None) => None,
-                _ => unreachable!("Exit code & signal should be mutually exclusive"),
-            },
+            exit_status: process.status().await.map(std_status_to_paas_status),
         }))
     }
 
-    async fn stop(&self, _req: Request<StopRequest>) -> Result<Response<StopResponse>, Status> {
-        Err(Status::unimplemented(""))
+    async fn stop(&self, req: Request<StopRequest>) -> Result<Response<StopResponse>, Status> {
+        let uid = Self::authenticate(&req)?;
+        let req = req.into_inner();
+        let pid = req
+            .id
+            .ok_or_else(|| Status::invalid_argument("Process ID not given"))?;
+        let process = self.get_process(pid, &uid)?;
+        match process.stop().await {
+            Ok(_) => Ok(Response::new(StopResponse {})),
+            // TODO: aborted is a questionable status here
+            Err(()) => Err(Status::aborted("Stop operation already in progress")),
+        }
     }
 }

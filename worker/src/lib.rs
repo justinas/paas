@@ -129,7 +129,8 @@ impl Process {
             return Ok(e);
         }
 
-        match self.0.stop_sender.lock().unwrap().take() {
+        let tx = self.0.stop_sender.lock().unwrap().take();
+        match tx {
             Some(tx) => {
                 let notify = self.0.progress.clone();
 
