@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use futures::stream::Stream;
+use futures::{stream::Stream, StreamExt};
 use tonic::{Request, Response, Status};
 
 use paas_types::process_service_server as server_types;
@@ -85,9 +85,17 @@ impl server_types::ProcessService for ProcessService {
 
     async fn get_logs(
         &self,
-        _req: Request<LogsRequest>,
+        req: Request<LogsRequest>,
     ) -> Result<Response<Self::GetLogsStream>, Status> {
-        Err(Status::unimplemented(""))
+        let uid = Self::authenticate(&req)?;
+        let req = req.into_inner();
+        let pid = req
+            .id
+            .ok_or_else(|| Status::invalid_argument("Process ID not given"))?;
+        let process = self.get_process(pid, &uid)?;
+        // TODO: buffer multiple lines
+        let stream = process.logs().map(|b| Ok(LogsResponse { lines: vec![b] }));
+        Ok(Response::new(Box::pin(stream)))
     }
 
     async fn get_status(
