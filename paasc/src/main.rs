@@ -1,55 +1,53 @@
-use futures::{pin_mut, stream::StreamExt};
+use structopt::StructOpt;
+use uuid::Uuid;
+
+use paas_types::process_service_client as client;
 use paasc::make_client;
 
+mod ops;
+
+#[derive(Debug, StructOpt)]
+enum Opt {
+    #[structopt(about = "Execute a process")]
+    Exec {
+        #[structopt(help = "Argument list")]
+        args: Vec<String>,
+    },
+    #[structopt(about = "Stream logs of the process with the given UUID")]
+    Logs {
+        #[structopt(help = "UUID of the process")]
+        pid: Uuid,
+    },
+    #[structopt(about = "Get status of the process with the given UUID")]
+    Status {
+        #[structopt(help = "UUID of the process")]
+        pid: Uuid,
+    },
+    #[structopt(
+        about = "Stop the process with the given UUID. If process has already finished, has no effect."
+    )]
+    Stop {
+        #[structopt(help = "UUID of the process")]
+        pid: Uuid,
+    },
+}
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), anyhow::Error> {
     pretty_env_logger::init();
+
+    let opt = Opt::from_args();
 
     let mut client = make_client(8443, "client1").await?;
 
-    let resp = client
-        .exec(paas_types::ExecRequest {
-            args: vec![
-                "bash".into(),
-                "-c".into(),
-                "while true; do echo $RANDOM; sleep 1; done".into(),
-            ],
-            //args: vec!["echo".into(), "foo".into()],
-        })
-        .await?;
-    dbg!(&resp);
-    let id = resp.into_inner().id;
-
-    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-
-    let stream = client
-        .get_logs(paas_types::LogsRequest { id: id.clone() })
-        .await?
-        .into_inner();
-
-    pin_mut!(stream);
-
-    stream
-        .for_each(|m| async move {
-            println!("{:?}", m);
-        })
-        .await;
-
-    /*
-    let resp = client
-        .get_status(paas_types::StatusRequest { id: id.clone() })
-        .await?;
-    dbg!(&resp);
-
-    let resp = client
-        .stop(paas_types::StopRequest { id: id.clone() })
-        .await?;
-    dbg!(&resp);
-
-    let resp = client
-        .get_status(paas_types::StatusRequest { id: id.clone() })
-        .await?;
-    dbg!(&resp);
-    */
+    match opt {
+        Opt::Exec { args } if args.is_empty() => {
+            anyhow::bail!("Empty process argument line");
+        }
+        Opt::Exec { args } => ops::exec(client, args).await,
+        Opt::Logs { pid } => ops::logs(client, pid).await,
+        Opt::Status { pid } => ops::status(client, pid).await,
+        Opt::Stop { pid } => ops::stop(client, pid).await,
+    }?;
     Ok(())
 }
