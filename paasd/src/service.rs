@@ -1,4 +1,4 @@
-use std::pin::Pin;
+use std::{convert::TryFrom, pin::Pin};
 
 use futures::stream::Stream;
 use tonic::{Request, Response, Status};
@@ -8,6 +8,8 @@ use paas_types::{
     ExecRequest, ExecResponse, LogsRequest, LogsResponse, StatusRequest, StatusResponse,
     StopRequest, StopResponse,
 };
+
+use crate::user::UserId;
 
 pub fn make_server() -> server_types::ProcessServiceServer<ProcessService> {
     server_types::ProcessServiceServer::new(ProcessService::new())
@@ -19,6 +21,18 @@ pub struct ProcessService;
 impl ProcessService {
     fn new() -> Self {
         Self
+    }
+
+    fn authenticate<T>(req: &Request<T>) -> Result<UserId, Status> {
+        let peer_certs = req.peer_certs().expect("no peer certs in the request");
+        let cert = peer_certs
+            .iter()
+            .next()
+            .expect("no peer certs in the request");
+
+        Ok(UserId::try_from(cert).map_err(|_| {
+            Status::unauthenticated("Could not parse client common name from client certificate")
+        })?)
     }
 }
 
@@ -40,8 +54,10 @@ impl server_types::ProcessService for ProcessService {
 
     async fn get_status(
         &self,
-        _req: Request<StatusRequest>,
+        req: Request<StatusRequest>,
     ) -> Result<Response<StatusResponse>, Status> {
+        let uid = Self::authenticate(&req)?;
+        dbg!(uid);
         Err(Status::unimplemented(""))
     }
 
