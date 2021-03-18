@@ -4,7 +4,6 @@ use rustls::{ciphersuite, internal::pemfile, ClientConfig, RootCertStore, Suppor
 use tonic::transport::Channel;
 
 use paas_types::process_service_client as client;
-use paas_types::StatusRequest;
 
 static CIPHERSUITES: &[&SupportedCipherSuite; 5] = &[
     &ciphersuite::TLS13_AES_256_GCM_SHA384,
@@ -50,7 +49,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .connect()
         .await?;
     let mut client = client::ProcessServiceClient::new(channel);
-    let resp = client.get_status(StatusRequest { id: None }).await?;
-    dbg!(resp);
+
+    let resp = client
+        .exec(paas_types::ExecRequest {
+            args: vec!["echo".into(), "foo".into()],
+        })
+        .await?;
+    dbg!(&resp);
+    let id = resp.into_inner().id;
+
+    let resp = client.get_status(paas_types::StatusRequest { id }).await?;
+    dbg!(&resp);
     Ok(())
 }

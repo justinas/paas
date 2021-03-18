@@ -17,6 +17,17 @@ pub enum GetError {
     Unauthorized,
 }
 
+impl Into<tonic::Status> for GetError {
+    fn into(self) -> tonic::Status {
+        use GetError::*;
+        match self {
+            NotFound => tonic::Status::not_found(format!("{:?}", self)),
+            // TODO: unauthenticated != unauthorized, better Status?
+            Unauthorized => tonic::Status::unauthenticated(format!("{:?}", self)),
+        }
+    }
+}
+
 pub type ProcessStore = Store<Process>;
 
 type StoreMap<V> = HashMap<Uuid, (UserId, Arc<V>)>;
