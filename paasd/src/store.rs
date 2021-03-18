@@ -19,7 +19,7 @@ type Process = (); // TODO: worker::Process instead
 type ProcessMap = HashMap<Uuid, (UserId, Arc<Process>)>;
 
 #[derive(Default)]
-pub struct ProcessStore(Arc<RwLock<ProcessMap>>);
+pub struct ProcessStore(RwLock<ProcessMap>);
 
 impl ProcessStore {
     pub fn new() -> Self {
