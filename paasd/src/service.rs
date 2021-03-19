@@ -17,10 +17,6 @@ use worker::Process;
 
 use crate::{store::ProcessStore, user::UserId};
 
-pub fn make_server() -> server_types::ProcessServiceServer<ProcessService> {
-    server_types::ProcessServiceServer::new(ProcessService::new(Arc::new(ProcessStore::new())))
-}
-
 fn std_status_to_paas_status(status: std::process::ExitStatus) -> ExitStatus {
     let code = status.code();
     let signal = status.signal();
@@ -37,7 +33,7 @@ pub struct ProcessService {
 }
 
 impl ProcessService {
-    fn new(store: Arc<ProcessStore>) -> Self {
+    pub fn new(store: Arc<ProcessStore>) -> Self {
         Self { store }
     }
 
