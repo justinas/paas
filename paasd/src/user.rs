@@ -1,6 +1,20 @@
 use std::convert::TryFrom;
-use tonic::transport::Certificate;
-use x509_parser::parse_x509_certificate;
+use tonic::{transport::Certificate, Status};
+use x509_parser::{error::X509Error, nom::Finish, parse_x509_certificate};
+
+#[derive(Debug, thiserror::Error)]
+pub enum AuthError {
+    #[error("malformed X509 certificate")]
+    X509(#[from] X509Error),
+    #[error("no common name found in the certificate")]
+    NoCommonName,
+}
+
+impl Into<Status> for AuthError {
+    fn into(self) -> Status {
+        Status::unauthenticated(format!("{}", self))
+    }
+}
 
 // TODO: consider making field private,
 // so it is only possible to construct a UserId from a cert.
@@ -8,17 +22,16 @@ use x509_parser::parse_x509_certificate;
 pub struct UserId(pub String);
 
 impl TryFrom<&Certificate> for UserId {
-    type Error = ();
+    type Error = AuthError;
+
     fn try_from(cert: &Certificate) -> Result<Self, Self::Error> {
-        // TODO: proper error types
-        let (_, cert) = parse_x509_certificate(cert.get_ref()).map_err(|_| ())?;
+        let (_, cert) = parse_x509_certificate(cert.get_ref()).finish()?;
         let common_name = cert
             .subject()
             .iter_common_name()
             .next()
-            .ok_or(())?
-            .as_str()
-            .map_err(|_| ())?;
+            .ok_or(AuthError::NoCommonName)?
+            .as_str()?;
         Ok(UserId(common_name.into()))
     }
 }

@@ -44,9 +44,7 @@ impl ProcessService {
             .next()
             .expect("no peer certs in the request");
 
-        Ok(UserId::try_from(cert).map_err(|_| {
-            Status::unauthenticated("Could not parse client common name from client certificate")
-        })?)
+        Ok(UserId::try_from(cert).map_err(Into::<Status>::into)?)
     }
 
     fn get_process(&self, pid: paas_types::Uuid, uid: &UserId) -> Result<Arc<Process>, Status> {
