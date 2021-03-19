@@ -650,6 +650,7 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "paas-types",
+ "paasc",
  "pretty_env_logger",
  "rustls",
  "thiserror",
