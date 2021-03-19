@@ -1,5 +1,7 @@
 [workspace]
-
 members = [
+    "paas-types",
+    "paasc",
+    "paasd",
     "worker",
 ]

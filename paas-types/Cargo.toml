@@ -1,0 +1,16 @@
+[package]
+name = "paas-types"
+version = "0.1.0"
+authors = ["Justinas Stankevicius <justinas@justinas.org>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+prost = "0.7"
+tonic = "0.4"
+uuid = { version = "0.8", features = ["v4"] }
+
+[build-dependencies]
+prost-build = "0.7"
+tonic-build = "0.4"
