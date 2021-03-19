@@ -45,7 +45,7 @@ pub async fn make_client(
 ) -> Result<ProcessServiceClient<Channel>, Box<dyn std::error::Error>> {
     let tls = tonic::transport::ClientTlsConfig::new().rustls_client_config(rustls_config(client)?);
 
-    let channel = Channel::from_shared(format!("http://localhost:{}", port))?
+    let channel = Channel::from_shared(format!("https://localhost:{}", port))?
         .tls_config(tls)?
         .connect()
         .await?;
