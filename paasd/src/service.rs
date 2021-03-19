@@ -63,10 +63,11 @@ impl server_types::ProcessService for ProcessService {
     async fn exec(&self, req: Request<ExecRequest>) -> Result<Response<ExecResponse>, Status> {
         let uid = Self::authenticate(&req)?;
         let req = req.into_inner();
-        if req.args.is_empty() {
-            return Err(Status::invalid_argument("'args' must be a non-empty array"));
-        }
-        match Process::spawn(&*req.args[0], req.args[1..].iter().map(AsRef::as_ref)) {
+        let mut args = req.args.iter();
+        let argv0 = args
+            .next()
+            .ok_or_else(|| Status::invalid_argument("'args' must be a non-empty array"))?;
+        match Process::spawn(argv0, args.map(AsRef::as_ref)) {
             Ok(p) => {
                 let pid = self.store.insert(&uid, p);
                 Ok(Response::new(ExecResponse {
