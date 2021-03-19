@@ -1,5 +1,4 @@
-use std::sync::Arc;
-use std::{fs::File, io::BufReader};
+use std::{fs::File, io::BufReader, sync::Arc};
 
 use rustls::{
     ciphersuite, internal::pemfile, AllowAnyAuthenticatedClient, RootCertStore, ServerConfig,
