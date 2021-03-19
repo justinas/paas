@@ -11,7 +11,7 @@ use paasd::make_server;
 
 fn exec_request(args: &[&str]) -> ExecRequest {
     ExecRequest {
-        args: args.iter().cloned().map(ToOwned::to_owned).collect(),
+        args: args.iter().copied().map(ToOwned::to_owned).collect(),
     }
 }
 
