@@ -3,6 +3,7 @@ use std::sync::Once;
 
 use tokio;
 use tonic::Code;
+use uuid::Uuid;
 
 use paas_types::{ExecRequest, StatusRequest};
 use paasc::make_client;
@@ -37,7 +38,13 @@ async fn test_spawn() {
     init();
     test_server(18001);
     let mut client = make_client(18001, "client1").await.unwrap();
-    client.exec(exec_request(&["echo"])).await.unwrap();
+    let resp = client
+        .exec(exec_request(&["echo"]))
+        .await
+        .unwrap()
+        .into_inner();
+    let pid = resp.id.unwrap().id;
+    assert!(Uuid::from_slice(&pid).is_ok());
 }
 
 #[tokio::test]
