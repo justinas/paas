@@ -67,3 +67,14 @@ async fn test_authorization() {
         .unwrap_err();
     assert_eq!(err.code(), Code::Unauthenticated);
 }
+
+#[tokio::test]
+async fn test_untrusted_client() {
+    init();
+    test_server(18003);
+
+    // Tonic quirk? Creating the channel succeeds, but requests fail.
+    let mut client = make_client(18003, "untrusted_client").await.unwrap();
+    let err = client.exec(exec_request(&["echo"])).await.unwrap_err();
+    assert_eq!(err.code(), Code::Unknown);
+}
