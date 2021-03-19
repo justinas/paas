@@ -43,3 +43,18 @@ openssl x509 -req -sha256 -days 1000 \
     -CA client_ca.pem -CAkey client_ca.key \
     -extfile client.ext \
     -in client2.csr -out client2.pem
+
+# Untrusted CA
+openssl genrsa -out untrusted_ca.key 3072
+openssl req -x509 -new -sha256 -days 1000 \
+    -subj "/CN=Untrusted Certificate Authority" \
+    -key untrusted_ca.key -out untrusted_ca.pem
+
+# Untrusted client, signed by untrusted CA
+openssl genrsa -out untrusted_client.key 3072
+openssl req -new -sha256 -days 1000 -subj "/CN=untrusted_client" -key untrusted_client.key -out untrusted_client.csr
+
+openssl x509 -req -sha256 -days 1000 \
+    -CA untrusted_ca.pem -CAkey untrusted_ca.key -CAcreateserial \
+    -extfile client.ext \
+    -in untrusted_client.csr -out untrusted_client.pem
