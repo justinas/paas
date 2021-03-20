@@ -2,6 +2,7 @@ use std::convert::TryFrom;
 use tonic::{transport::Certificate, Status};
 use x509_parser::{error::X509Error, nom::Finish, parse_x509_certificate};
 
+/// The error produced by unsuccessful authentication of a user from a client certificate.
 #[derive(Debug, thiserror::Error)]
 pub enum AuthError {
     #[error("malformed X509 certificate")]
@@ -16,6 +17,8 @@ impl Into<Status> for AuthError {
     }
 }
 
+/// Represents a user that has been successfully authenticated via a TLS client certificate.
+/// Wraps the user's common name, extracted from the certificate.
 // TODO: consider making field private,
 // so it is only possible to construct a UserId from a cert.
 #[derive(Clone, Debug, Eq, PartialEq)]
