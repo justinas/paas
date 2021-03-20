@@ -41,11 +41,13 @@ impl ProcessService {
     }
 
     fn authenticate<T>(req: &Request<T>) -> Result<UserId, Status> {
-        let peer_certs = req.peer_certs().expect("no peer certs in the request");
+        let peer_certs = req.peer_certs().unwrap_or_else(|| {
+            unreachable!("peer certificates should always be present (guaranteed by TLS config)")
+        });
         let cert = peer_certs
             .iter()
             .next()
-            .expect("no peer certs in the request");
+            .unwrap_or_else(|| unreachable!("at least one peer cert should always be present"));
 
         Ok(UserId::try_from(cert).map_err(Into::<Status>::into)?)
     }
