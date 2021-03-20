@@ -10,6 +10,22 @@ use worker::Process;
 
 use crate::user::UserId;
 
+/// Represents a resource stored in state, and *owned* by some user.
+/// The `owner` data is used for authorization in `Store` impl.
+struct Owned<T> {
+    value: Arc<T>,
+    owner: UserId,
+}
+
+impl<T> Owned<T> {
+    fn new(value: T, owner: UserId) -> Self {
+        Self {
+            value: Arc::new(value),
+            owner,
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum GetError {
     #[error("Process with the given id not found")]
@@ -25,36 +41,45 @@ impl Into<Status> for GetError {
     }
 }
 
+/// A concretization of Store that holds processes.
 pub type ProcessStore = Store<Process>;
 
-type StoreMap<V> = HashMap<Uuid, (UserId, Arc<V>)>;
-
+/// An in-memory storage for objects such as processes,
+/// with ownership data attached.
 #[derive(Default)]
-pub struct Store<V>(RwLock<StoreMap<V>>);
+pub struct Store<V>(RwLock<HashMap<Uuid, Owned<V>>>);
 
 impl<V> Store<V> {
+    /// Constructs a new, empty store.
     pub fn new() -> Self {
-        Self(RwLock::new(StoreMap::new()))
+        Self(RwLock::new(HashMap::new()))
     }
 
-    pub fn get(&self, pid: Uuid, uid: &UserId) -> Result<Arc<V>, GetError> {
+    /// Tries to get a reference to a resource with the given `id`,
+    /// owned by the user identified by the given `uid`.
+    /// Returns an error if a resource is not found by the given ID,
+    /// or the user is not the owner of the resource.
+    pub fn get(&self, id: Uuid, uid: &UserId) -> Result<Arc<V>, GetError> {
         let read = self.0.read().unwrap();
-        let (owner, process) = read.get(&pid).ok_or(GetError::NotFound)?;
+        let Owned { value, owner } = read.get(&id).ok_or(GetError::NotFound)?;
         // TODO: does this need constant-time EQ?
         if owner == uid {
-            Ok(process.clone())
+            Ok(value.clone())
         } else {
             Err(GetError::NotFound)
         }
     }
 
-    pub fn insert(&self, uid: &UserId, process: V) -> Uuid {
+    /// Puts the given resource into the store,
+    /// marking the resource as being owned by the given user.
+    /// Generates and returns a `Uuid` that can be used to later retrieve the resource.
+    pub fn insert(&self, uid: &UserId, value: V) -> Uuid {
         let pid = Uuid::new_v4();
         let prev = self
             .0
             .write()
             .unwrap()
-            .insert(pid, (uid.clone(), Arc::new(process)));
+            .insert(pid, Owned::new(value, uid.clone()));
         if prev.is_some() {
             unreachable!("Duplicate UUID generated");
         }
