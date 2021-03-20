@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use tonic::Status;
 use uuid::Uuid;
 
 use worker::Process;
@@ -17,13 +18,13 @@ pub enum GetError {
     Unauthorized,
 }
 
-impl Into<tonic::Status> for GetError {
-    fn into(self) -> tonic::Status {
+impl Into<Status> for GetError {
+    fn into(self) -> Status {
         use GetError::*;
         match self {
-            NotFound => tonic::Status::not_found(format!("{}", self)),
+            NotFound => Status::not_found(format!("{}", self)),
             // TODO: unauthenticated != unauthorized, better Status?
-            Unauthorized => tonic::Status::unauthenticated(format!("{}", self)),
+            Unauthorized => Status::unauthenticated(format!("{}", self)),
         }
     }
 }

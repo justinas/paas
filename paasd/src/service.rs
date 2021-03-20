@@ -2,6 +2,7 @@ use std::{
     convert::{TryFrom, TryInto},
     os::unix::process::ExitStatusExt,
     pin::Pin,
+    process::ExitStatus as StdExitStatus,
     sync::Arc,
 };
 
@@ -19,7 +20,7 @@ use crate::{store::ProcessStore, user::UserId};
 
 const NO_PID: &str = "Process ID not given";
 
-fn std_status_to_paas_status(status: std::process::ExitStatus) -> ExitStatus {
+fn std_status_to_paas_status(status: StdExitStatus) -> ExitStatus {
     let code = status.code();
     let signal = status.signal();
     match (code, signal) {
@@ -60,7 +61,7 @@ impl ProcessService {
 #[tonic::async_trait]
 impl server_types::ProcessService for ProcessService {
     type GetLogsStream =
-        Pin<Box<dyn Stream<Item = Result<LogsResponse, tonic::Status>> + Send + Sync + 'static>>;
+        Pin<Box<dyn Stream<Item = Result<LogsResponse, Status>> + Send + Sync + 'static>>;
 
     async fn exec(&self, req: Request<ExecRequest>) -> Result<Response<ExecResponse>, Status> {
         let uid = Self::authenticate(&req)?;

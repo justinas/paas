@@ -1,10 +1,10 @@
-use std::{fs::File, io::BufReader, sync::Arc};
+use std::{error::Error, fs::File, io::BufReader, sync::Arc};
 
 use rustls::{
     ciphersuite, internal::pemfile, AllowAnyAuthenticatedClient, RootCertStore, ServerConfig,
     SupportedCipherSuite,
 };
-use tonic::transport::server::{Router, Server as TonicServer, Unimplemented};
+use tonic::transport::server::{Router, Server as TonicServer, ServerTlsConfig, Unimplemented};
 
 use paas_types::process_service_server::ProcessServiceServer;
 
@@ -25,11 +25,11 @@ static CIPHERSUITES: &[&SupportedCipherSuite; 5] = &[
     &ciphersuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 ];
 
-fn buf_read(path: &str) -> Result<BufReader<File>, Box<dyn std::error::Error>> {
+fn buf_read(path: &str) -> Result<BufReader<File>, Box<dyn Error>> {
     Ok(BufReader::new(File::open(path)?))
 }
 
-fn rustls_config() -> Result<ServerConfig, Box<dyn std::error::Error>> {
+fn rustls_config() -> Result<ServerConfig, Box<dyn Error>> {
     let mut cert_store = RootCertStore::empty();
     cert_store
         .add_pem_file(&mut buf_read("data/client_ca.pem")?)
@@ -53,8 +53,8 @@ fn make_service() -> ProcessServiceServer<ProcessService> {
     ProcessServiceServer::new(ProcessService::new(Arc::new(ProcessStore::new())))
 }
 
-pub fn make_server() -> Result<Server, Box<dyn std::error::Error>> {
-    let mut tls = tonic::transport::ServerTlsConfig::new();
+pub fn make_server() -> Result<Server, Box<dyn Error>> {
+    let mut tls = ServerTlsConfig::new();
     tls.rustls_server_config(rustls_config()?);
 
     Ok(TonicServer::builder()
