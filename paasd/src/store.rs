@@ -56,7 +56,7 @@ impl<V> Store<V> {
             .unwrap()
             .insert(pid, (uid.clone(), Arc::new(process)));
         if prev.is_some() {
-            panic!("Duplicate UUID generated: this should never happen");
+            unreachable!("Duplicate UUID generated");
         }
         pid
     }
