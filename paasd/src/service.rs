@@ -17,6 +17,8 @@ use worker::Process;
 
 use crate::{store::ProcessStore, user::UserId};
 
+const NO_PID: &str = "Process ID not given";
+
 fn std_status_to_paas_status(status: std::process::ExitStatus) -> ExitStatus {
     let code = status.code();
     let signal = status.signal();
@@ -84,9 +86,7 @@ impl server_types::ProcessService for ProcessService {
     ) -> Result<Response<Self::GetLogsStream>, Status> {
         let uid = Self::authenticate(&req)?;
         let req = req.into_inner();
-        let pid = req
-            .id
-            .ok_or_else(|| Status::invalid_argument("Process ID not given"))?;
+        let pid = req.id.ok_or_else(|| Status::invalid_argument(NO_PID))?;
         let process = self.get_process(pid, &uid)?;
         // TODO: buffer multiple lines
         let stream = process.logs().map(|b| Ok(LogsResponse { lines: vec![b] }));
@@ -99,9 +99,7 @@ impl server_types::ProcessService for ProcessService {
     ) -> Result<Response<StatusResponse>, Status> {
         let uid = Self::authenticate(&req)?;
         let req = req.into_inner();
-        let pid = req
-            .id
-            .ok_or_else(|| Status::invalid_argument("Process ID not given"))?;
+        let pid = req.id.ok_or_else(|| Status::invalid_argument(NO_PID))?;
         let process = self.get_process(pid, &uid)?;
         Ok(Response::new(StatusResponse {
             exit_status: process.status().await.map(std_status_to_paas_status),
@@ -111,9 +109,7 @@ impl server_types::ProcessService for ProcessService {
     async fn stop(&self, req: Request<StopRequest>) -> Result<Response<StopResponse>, Status> {
         let uid = Self::authenticate(&req)?;
         let req = req.into_inner();
-        let pid = req
-            .id
-            .ok_or_else(|| Status::invalid_argument("Process ID not given"))?;
+        let pid = req.id.ok_or_else(|| Status::invalid_argument(NO_PID))?;
         let process = self.get_process(pid, &uid)?;
         match process.stop().await {
             Ok(_) => Ok(Response::new(StopResponse {})),
