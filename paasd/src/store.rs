@@ -14,8 +14,6 @@ use crate::user::UserId;
 pub enum GetError {
     #[error("Process with the given id not found")]
     NotFound,
-    #[error("User unauthorized to access this process")]
-    Unauthorized,
 }
 
 impl Into<Status> for GetError {
@@ -23,8 +21,6 @@ impl Into<Status> for GetError {
         use GetError::*;
         match self {
             NotFound => Status::not_found(format!("{}", self)),
-            // TODO: unauthenticated != unauthorized, better Status?
-            Unauthorized => Status::unauthenticated(format!("{}", self)),
         }
     }
 }
@@ -48,7 +44,7 @@ impl<V> Store<V> {
         if owner == uid {
             Ok(process.clone())
         } else {
-            Err(GetError::Unauthorized)
+            Err(GetError::NotFound)
         }
     }
 
@@ -85,7 +81,7 @@ mod test {
         let uid2 = UserId("eve".into());
         let store = Store::new();
         let pid = store.insert(&uid1, ());
-        assert!(matches!(store.get(pid, &uid2), Err(GetError::Unauthorized)))
+        assert!(matches!(store.get(pid, &uid2), Err(GetError::NotFound)))
     }
 
     #[test]

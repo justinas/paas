@@ -72,7 +72,7 @@ async fn test_authorization() {
         .get_status(StatusRequest { id: pid1.clone() })
         .await
         .unwrap_err();
-    assert_eq!(err.code(), Code::Unauthenticated);
+    assert_eq!(err.code(), Code::NotFound);
 }
 
 #[tokio::test]
