@@ -1,7 +1,6 @@
 use structopt::StructOpt;
 use uuid::Uuid;
 
-use paas_types::process_service_client as client;
 use paasc::make_client;
 
 mod ops;
@@ -38,7 +37,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let opt = Opt::from_args();
 
-    let mut client = make_client(8443, "client1").await?;
+    let client = make_client(8443, "client1").await?;
 
     match opt {
         Opt::Exec { args } if args.is_empty() => {
