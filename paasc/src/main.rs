@@ -1,3 +1,4 @@
+use anyhow::{bail, Error};
 use structopt::StructOpt;
 use uuid::Uuid;
 
@@ -32,7 +33,7 @@ enum Opt {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), anyhow::Error> {
+async fn main() -> Result<(), Error> {
     pretty_env_logger::init();
 
     let opt = Opt::from_args();
@@ -41,7 +42,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     match opt {
         Opt::Exec { args } if args.is_empty() => {
-            anyhow::bail!("Empty process argument line");
+            bail!("Empty process argument line");
         }
         Opt::Exec { args } => ops::exec(client, args).await,
         Opt::Logs { pid } => ops::logs(client, pid).await,
