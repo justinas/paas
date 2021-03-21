@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Error};
 use rustls::{ciphersuite, internal::pemfile, ClientConfig, RootCertStore, SupportedCipherSuite};
 use std::{fs::File, io::BufReader, path::Path};
-use tonic::transport::Channel;
+use tonic::transport::{Channel, ClientTlsConfig};
 
 use paas_types::process_service_client::ProcessServiceClient;
 
@@ -44,7 +44,7 @@ fn rustls_config(client: &str) -> Result<ClientConfig, Error> {
 }
 
 pub async fn make_client(port: u16, client: &str) -> Result<ProcessServiceClient<Channel>, Error> {
-    let tls = tonic::transport::ClientTlsConfig::new().rustls_client_config(rustls_config(client)?);
+    let tls = ClientTlsConfig::new().rustls_client_config(rustls_config(client)?);
 
     let channel = Channel::from_shared(format!("https://localhost:{}", port))?
         .tls_config(tls)?
