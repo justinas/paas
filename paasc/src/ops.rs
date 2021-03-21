@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 
+use anyhow::anyhow;
 use futures::{pin_mut, stream::StreamExt};
 use tonic::transport::Channel;
 use uuid::Uuid;
@@ -13,10 +14,10 @@ pub async fn exec(
     args: Vec<String>,
 ) -> Result<(), anyhow::Error> {
     let resp = client.exec(ExecRequest { args }).await?.into_inner();
-    println!(
-        "{}",
-        TryInto::<Uuid>::try_into(resp.id.unwrap())?.to_hyphenated()
-    );
+    let pid = resp
+        .id
+        .ok_or_else(|| anyhow!("expected process ID in the response"))?;
+    println!("{}", TryInto::<Uuid>::try_into(pid)?.to_hyphenated());
     Ok(())
 }
 
