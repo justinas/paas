@@ -1,5 +1,5 @@
 use rustls::{ciphersuite, internal::pemfile, ClientConfig, RootCertStore, SupportedCipherSuite};
-use std::{fs::File, io::BufReader};
+use std::{fs::File, io::BufReader, path::Path};
 use tonic::transport::Channel;
 
 use paas_types::process_service_client::ProcessServiceClient;
@@ -12,18 +12,19 @@ static CIPHERSUITES: &[&SupportedCipherSuite; 5] = &[
     &ciphersuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 ];
 
-fn buf_read(path: &str) -> Result<BufReader<File>, Box<dyn std::error::Error>> {
+fn buf_read(path: impl AsRef<Path>) -> Result<BufReader<File>, Box<dyn std::error::Error>> {
     Ok(BufReader::new(File::open(path)?))
 }
 
 fn rustls_config(client: &str) -> Result<ClientConfig, Box<dyn std::error::Error>> {
+    let data_path = Path::new("./data");
     let mut cert_store = RootCertStore::empty();
     cert_store
-        .add_pem_file(&mut buf_read("data/server_ca.pem")?)
+        .add_pem_file(&mut buf_read(data_path.join("server_ca.pem"))?)
         .unwrap();
 
-    let cert_path = format!("data/{}.pem", client);
-    let key_path = format!("data/{}.key", client);
+    let cert_path = data_path.join(&format!("{}.pem", client));
+    let key_path = data_path.join(&format!("{}.key", client));
     let cert = pemfile::certs(&mut buf_read(&cert_path)?).unwrap();
     let key = pemfile::rsa_private_keys(&mut buf_read(&key_path)?)
         .unwrap()
