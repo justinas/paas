@@ -5,7 +5,7 @@
 * [Building](#building)
 * [Running](#running)
     * [Paasd (server)](#paasd-server)
-    * [Paasc (client) example session](#paasc-client-example-session)
+    * [Paasc (client): example session](#paasc-client-example-session)
 * [Development certificates](#development-certificates)
 * [Contributing](#contributing)
 
@@ -34,7 +34,7 @@ $ RUST_LOG=info ./target/release/paasd
  INFO  paasd > starting on 127.0.0.1:8443
 ```
 
-### Paasc (client) example session
+### Paasc (client): example session
 ```console
 $ ./target/release/paasc exec bash -c 'while true; do echo $RANDOM; sleep 1; done'
 50a1d407-c48c-4323-854d-a954aca0b075
