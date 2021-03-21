@@ -14,7 +14,11 @@
 
 Requirements: 
 * Rust 1.45.2 or higher
-* Protoc
+* Protoc (installed in a standard location, see [prost-build docs](https://docs.rs/prost-build/0.7.0/prost_build/#sourcing-protoc) for more info)
+
+Nix users can use the provided [shell.nix](/shell.nix).
+
+To compile in release profile, run:
 
 ```console
 $ cargo build --release
