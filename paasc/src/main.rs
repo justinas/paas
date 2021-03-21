@@ -1,5 +1,5 @@
 use anyhow::{bail, Error};
-use structopt::StructOpt;
+use structopt::{clap::AppSettings::AllowLeadingHyphen, StructOpt};
 use uuid::Uuid;
 
 use paasc::make_client;
@@ -8,7 +8,7 @@ mod ops;
 
 #[derive(Debug, StructOpt)]
 enum Opt {
-    #[structopt(about = "Execute a process")]
+    #[structopt(about = "Execute a process", setting = AllowLeadingHyphen)]
     Exec {
         #[structopt(help = "Argument list")]
         args: Vec<String>,
