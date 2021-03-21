@@ -1,6 +1,7 @@
+use std::{fs::File, io::BufReader, path::Path};
+
 use anyhow::{anyhow, Error};
 use rustls::{ciphersuite, internal::pemfile, ClientConfig, RootCertStore, SupportedCipherSuite};
-use std::{fs::File, io::BufReader, path::Path};
 use tonic::transport::{Channel, ClientTlsConfig};
 
 use paas_types::process_service_client::ProcessServiceClient;
