@@ -6,8 +6,9 @@ use tonic::transport::Channel;
 use uuid::Uuid;
 
 use paas_types::process_service_client::ProcessServiceClient;
-use paas_types::status_response::ExitStatus;
-use paas_types::{ExecRequest, LogsRequest, StatusRequest, StopRequest};
+use paas_types::{
+    status_response::ExitStatus, ExecRequest, LogsRequest, StatusRequest, StopRequest,
+};
 
 pub async fn exec(
     mut client: ProcessServiceClient<Channel>,
