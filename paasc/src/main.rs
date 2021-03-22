@@ -42,7 +42,7 @@ async fn main() -> Result<(), Error> {
 
     match opt {
         Opt::Exec { args } if args.is_empty() => {
-            bail!("Empty process argument line");
+            bail!("empty process argument line");
         }
         Opt::Exec { args } => ops::exec(client, args).await,
         Opt::Logs { pid } => ops::logs(client, pid).await,
