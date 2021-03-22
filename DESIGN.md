@@ -47,7 +47,8 @@ This in-memory store keeps the information for the lifetime of the daemon.
 
 ## API
 
-Clients interact with `paasd` via a gRPC API. See `paas.proto` for RPC definition.
+Clients interact with `paasd` via a gRPC API.
+See [paas.proto](/paas-types/proto/paas.proto) for RPC definition.
 
 ### `Exec`
 
