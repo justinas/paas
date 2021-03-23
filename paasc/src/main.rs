@@ -1,4 +1,4 @@
-use anyhow::{bail, Error};
+use anyhow::{bail, Result};
 use structopt::{clap::AppSettings::AllowLeadingHyphen, StructOpt};
 use uuid::Uuid;
 
@@ -33,7 +33,7 @@ enum Opt {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> Result<()> {
     pretty_env_logger::init();
 
     let opt = Opt::from_args();

@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use anyhow::{anyhow, Error};
+use anyhow::{anyhow, Result};
 use futures::{pin_mut, stream::StreamExt};
 use tonic::transport::Channel;
 use uuid::Uuid;
@@ -10,10 +10,7 @@ use paas_types::{
     status_response::ExitStatus, ExecRequest, LogsRequest, StatusRequest, StopRequest,
 };
 
-pub async fn exec(
-    mut client: ProcessServiceClient<Channel>,
-    args: Vec<String>,
-) -> Result<(), Error> {
+pub async fn exec(mut client: ProcessServiceClient<Channel>, args: Vec<String>) -> Result<()> {
     let resp = client.exec(ExecRequest { args }).await?.into_inner();
     let pid = resp
         .id
@@ -22,7 +19,7 @@ pub async fn exec(
     Ok(())
 }
 
-pub async fn logs(mut client: ProcessServiceClient<Channel>, id: Uuid) -> Result<(), Error> {
+pub async fn logs(mut client: ProcessServiceClient<Channel>, id: Uuid) -> Result<()> {
     let stream = client
         .get_logs(LogsRequest {
             id: Some(id.into()),
@@ -41,7 +38,7 @@ pub async fn logs(mut client: ProcessServiceClient<Channel>, id: Uuid) -> Result
     Ok(())
 }
 
-pub async fn status(mut client: ProcessServiceClient<Channel>, id: Uuid) -> Result<(), Error> {
+pub async fn status(mut client: ProcessServiceClient<Channel>, id: Uuid) -> Result<()> {
     let resp = client
         .get_status(StatusRequest {
             id: Some(id.into()),
@@ -56,7 +53,7 @@ pub async fn status(mut client: ProcessServiceClient<Channel>, id: Uuid) -> Resu
     Ok(())
 }
 
-pub async fn stop(mut client: ProcessServiceClient<Channel>, id: Uuid) -> Result<(), Error> {
+pub async fn stop(mut client: ProcessServiceClient<Channel>, id: Uuid) -> Result<()> {
     client
         .stop(StopRequest {
             id: Some(id.into()),

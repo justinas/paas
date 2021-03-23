@@ -1,6 +1,6 @@
 use std::{fs::File, io::BufReader, path::Path};
 
-use anyhow::{anyhow, Error};
+use anyhow::{anyhow, Result};
 use rustls::{ciphersuite, internal::pemfile, ClientConfig, RootCertStore, SupportedCipherSuite};
 use tonic::transport::{Channel, ClientTlsConfig};
 
@@ -14,11 +14,11 @@ static CIPHERSUITES: &[&SupportedCipherSuite; 5] = &[
     &ciphersuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 ];
 
-fn buf_read(path: impl AsRef<Path>) -> Result<BufReader<File>, Error> {
+fn buf_read(path: impl AsRef<Path>) -> Result<BufReader<File>> {
     Ok(BufReader::new(File::open(path)?))
 }
 
-fn rustls_config(client: &str) -> Result<ClientConfig, Error> {
+fn rustls_config(client: &str) -> Result<ClientConfig> {
     let data_path = Path::new("./data");
     let mut cert_store = RootCertStore::empty();
     cert_store
@@ -44,7 +44,7 @@ fn rustls_config(client: &str) -> Result<ClientConfig, Error> {
     Ok(config)
 }
 
-pub async fn make_client(port: u16, client: &str) -> Result<ProcessServiceClient<Channel>, Error> {
+pub async fn make_client(port: u16, client: &str) -> Result<ProcessServiceClient<Channel>> {
     let tls = ClientTlsConfig::new().rustls_client_config(rustls_config(client)?);
 
     let channel = Channel::from_shared(format!("https://localhost:{}", port))?
