@@ -1,6 +1,6 @@
 use std::{fs::File, io::BufReader, sync::Arc};
 
-use anyhow::{anyhow, Error};
+use anyhow::{anyhow, Result};
 use rustls::{
     ciphersuite, internal::pemfile, AllowAnyAuthenticatedClient, RootCertStore, ServerConfig,
     SupportedCipherSuite,
@@ -26,11 +26,11 @@ static CIPHERSUITES: &[&SupportedCipherSuite; 5] = &[
     &ciphersuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 ];
 
-fn buf_read(path: &str) -> Result<BufReader<File>, Error> {
+fn buf_read(path: &str) -> Result<BufReader<File>> {
     Ok(BufReader::new(File::open(path)?))
 }
 
-fn rustls_config() -> Result<ServerConfig, Error> {
+fn rustls_config() -> Result<ServerConfig> {
     let mut cert_store = RootCertStore::empty();
     cert_store
         .add_pem_file(&mut buf_read("data/client_ca.pem")?)
@@ -56,7 +56,7 @@ fn make_service() -> ProcessServiceServer<ProcessService> {
     ProcessServiceServer::new(ProcessService::new(Arc::new(ProcessStore::new())))
 }
 
-pub fn make_server() -> Result<Server, Error> {
+pub fn make_server() -> Result<Server> {
     let mut tls = ServerTlsConfig::new();
     tls.rustls_server_config(rustls_config()?);
 
