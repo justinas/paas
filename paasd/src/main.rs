@@ -1,10 +1,10 @@
-use anyhow::Error;
+use anyhow::Result;
 use log::info;
 
 use paasd::make_server;
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> Result<()> {
     pretty_env_logger::init();
 
     let addr = "127.0.0.1:8443".parse()?;
