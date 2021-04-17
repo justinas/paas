@@ -1,5 +1,8 @@
 # Paas (processes as a service)
 
+This was my solution for Teleport's
+[backend software engineer coding challenge](https://github.com/gravitational/careers/blob/main/challenges/systems/worker.pdf).
+
 Paas is a set of tools that allow users to execute and manage arbitrary Unix processes.
 `paasd` is a daemon that exposes these operations via a gRPC API over mTLS.
 `paasc` is a command line utility to interact with `paasd`.
