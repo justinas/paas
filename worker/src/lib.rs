@@ -30,12 +30,16 @@ async fn process_task(
     let stdout = BufReader::new(child.stdout.take().expect("should always be available"));
     let stderr = BufReader::new(child.stderr.take().expect("should always be available"));
 
+    let copy = futures::future::join(
+        logs::copy(stdout, inner.clone()),
+        logs::copy(stderr, inner.clone()),
+    )
+    .fuse();
+    tokio::pin!(copy);
+
     // Phase 1: copy logs from stdout/stderr, on stop message: signal the child.
     tokio::select! {
-        copied = futures::future::join(
-            logs::copy(stdout, inner.clone()),
-            logs::copy(stderr, inner.clone())
-        ) => {
+        copied = &mut copy => {
             if let Err(e) = copied.0 {
                 error!("{:?}", e);
             }
@@ -50,26 +54,38 @@ async fn process_task(
         },
     };
 
-    // Phase 2: stdout/stderr have been closed,
-    // wait for a stop message to arrive (if not arrived yet),
-    // or on the child to finish otherwise
-    loop {
+    // Phase 2: Wait for the child to exit.
+    // We get here either when both stdout & stderr have been closed
+    // (in which case we do not attempt to read them again),
+    // or when a stop signal has been sent to the process.
+    // In the latter case, the process might still log something,
+    // so keep copying stuff.
+    let mut child_exited = false;
+    while !(child_exited && copy.is_terminated()) {
         tokio::select! {
+            copied = &mut copy, if !copy.is_terminated() => {
+                if let Err(e) = copied.0 {
+                    error!("{:?}", e);
+                }
+                if let Err(e) = copied.1 {
+                    error!("{:?}", e);
+                }
+            },
             _ = &mut stop_receiver, if !stop_receiver.is_terminated() => {
                 if let Err(e) = ops::stop_child(&mut child).await {
                     error!("{:?}", e);
                 }
             },
-            res = child.wait() => {
+            res = child.wait(), if !child_exited => {
                 match res {
                     Ok(s) => {
                         inner.finish(s).await;
                         inner.progress.notify_waiters();
-                        return;
                     }
                     Err(e) => panic!("Unexpected error from wait(): {:?}", e),
                 }
-            }
+                child_exited = true;
+            },
         }
     }
 }
@@ -235,20 +251,15 @@ mod test {
         pin_mut!(logs);
         assert_eq!(logs.next().await.as_deref(), Some(&b"started"[..]));
 
-        assert_eq!(
-            p.stop().await.unwrap().signal().unwrap(),
-            nix::sys::signal::Signal::SIGTERM as i32
-        );
+        // Signal has been swallowed by the trap, so expect the status code
+        assert_eq!(p.stop().await.unwrap().code().unwrap(), 23);
 
         // ensure logs after signal are still copied
         assert_eq!(logs.next().await.as_deref(), Some(&b"exited cleanly"[..]));
         assert_eq!(logs.next().await, None);
 
         // Repeated stops return exit status again
-        assert_eq!(
-            p.stop().await.unwrap().code().unwrap(),
-            nix::sys::signal::Signal::SIGTERM as i32
-        );
+        assert_eq!(p.stop().await.unwrap().code().unwrap(), 23);
     }
 
     #[tokio::test]
