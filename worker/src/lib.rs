@@ -170,7 +170,7 @@ impl Process {
 
 #[cfg(test)]
 mod test {
-    use std::{os::unix::process::ExitStatusExt, time::Duration};
+    use std::os::unix::process::ExitStatusExt;
 
     use futures::{pin_mut, StreamExt};
 
@@ -217,19 +217,36 @@ mod test {
     #[tokio::test]
     async fn test_process_stop() {
         let script = "
+            cleanup() {
+                echo 'exited cleanly'
+                exit 23
+            }
+            trap cleanup SIGTERM
+
+            echo 'started'
             while true; do
                 sleep 1
             done;
         ";
         let p = Process::spawn("bash", ["-c", script].iter().cloned()).unwrap();
+
+        // Wait until bash executes at least "trap"
+        let logs = p.logs();
+        pin_mut!(logs);
+        assert_eq!(logs.next().await.as_deref(), Some(&b"started"[..]));
+
         assert_eq!(
             p.stop().await.unwrap().signal().unwrap(),
             nix::sys::signal::Signal::SIGTERM as i32
         );
 
+        // ensure logs after signal are still copied
+        assert_eq!(logs.next().await.as_deref(), Some(&b"exited cleanly"[..]));
+        assert_eq!(logs.next().await, None);
+
         // Repeated stops return exit status again
         assert_eq!(
-            p.stop().await.unwrap().signal().unwrap(),
+            p.stop().await.unwrap().code().unwrap(),
             nix::sys::signal::Signal::SIGTERM as i32
         );
     }
@@ -238,6 +255,8 @@ mod test {
     async fn test_process_stop_forceful() {
         let script = r#"
             trap "" TERM
+
+            echo 'started'
             while true; do
                 sleep 1
             done;
@@ -246,7 +265,9 @@ mod test {
         let p = Process::spawn("bash", ["-c", script].iter().cloned()).unwrap();
 
         // Wait until bash executes at least "trap"
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        let logs = p.logs();
+        pin_mut!(logs);
+        assert_eq!(logs.next().await.as_deref(), Some(&b"started"[..]));
 
         assert_eq!(
             p.stop().await.unwrap().signal().unwrap(),
