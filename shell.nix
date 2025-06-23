@@ -1,6 +1,6 @@
 { pkgs ? import <nixpkgs> { } }:
 pkgs.mkShell {
-  buildInputs = with pkgs; [ cargo openssl protobuf rustc ];
+  buildInputs = with pkgs; [ cargo openssl protobuf rustc rustfmt ];
   shellHook = ''
     export PROTOBUF_LOCATION=${pkgs.protobuf}
     export PROTOC=${pkgs.protobuf}/bin/protoc
